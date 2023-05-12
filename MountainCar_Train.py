@@ -18,6 +18,11 @@ gamma = 0.95
 # number of episodes of training
 epochs = 5000
 
+# seed to initialize environments - this is used in order to reduce training needs
+# but, we'll have an over-fitted trained model.
+# remove it and raise number of training epochs to get a better and agnostic model
+seed = 42
+
 # exploration/exploitation rate : 1 = 100% exploration, 0 = 100% exploitation
 # 'epsilon greedy' strategy : epsilon is very high at the beginning, then decreases over time
 epsilon = 1.
@@ -29,7 +34,7 @@ epsilon_decay_value = epsilon / (end_epsilon_decaying - start_epsilon_decaying)
 
 TRAIN = False
 PREDICT = True
-
+SAVE_Q_TABLE = False
 
 def init():
     """
@@ -41,29 +46,21 @@ def init():
     for ii in range(env.observation_space.shape[0]):
         gridspace[ii] = np.linspace(env.observation_space.low[ii], env.observation_space.high[ii], n_grid)
 
-    q_table = np.random.uniform(low=-2, high=2, size=(n_grid, n_grid, env.action_space.n))
+    # q_table = np.random.uniform(low=0, high=4, size=(n_grid, n_grid, env.action_space.n))
 
 
 # define a function that makes it easy to get our discrete indices from an observation
 def to_discrete_state(observation: np.ndarray(2, )):
     """
-    returns a tuple of (position, velocity) discrete state
+    returns a tuple of (position, velocity) of discrete state
+
+    basically, it returns the indices of the grid that the observation falls into
+
+    values are int [0...n_grid] and corresponds to rows and columns of the q_table
     :argument observation: ndarray of continuous observation state (position, velocity)
     """
-    # print("** get_discretized_observation **")
-    # print("to_discrete_state | observation: ", observation)
-    # print("gridspace: ", gridspace)
-    # for (ii, grid) in gridspace.items():
-    #     print("ii: ", ii)
-    #     print("grid: ", grid)
-    #     print("observation[ii]: ", observation[ii])
-    #     print("np.abs(grid - observation[ii]): ", np.abs(grid - observation[ii]))
-    #     print("np.argmin(np.abs(grid - observation[ii])): ", np.argmin(np.abs(grid - observation[ii])))
-    # return tuple of indices in the grid
+    # return tuple (position, velocity) of indices in the grid
     discrete_state = np.array([np.argmin(np.abs(grid - observation[ii])) for (ii, grid) in gridspace.items()])
-    # print("discrete_state: ", discrete_state)
-    # state = gridspace[0][index[0]], gridspace[1][index[1]]
-    # print("to_discrete_state | state: ", tuple(discrete_state))
     return tuple(discrete_state)
 
 
@@ -73,15 +70,13 @@ def explore_or_exploit(q_value):
     :param q_value:
     :return: 
     """
+    global epsilon, env
     if np.random.random() > epsilon:
         # exploit
-        strategy = "exploit"
         action = np.argmax(q_value)
     else:
         # explore
-        strategy = "explore"
         action = np.random.randint(0, env.action_space.n)
-
     # print("action: ", action, "strategy: ", strategy)
     return action
 
@@ -91,20 +86,18 @@ def train():
     Train the agent
     :return:
     """
-    global epsilon, q_table
+    global epsilon, q_table, env; seed
     print("**** Training ****")
     for episode in range(epochs):
-        discrete_state = to_discrete_state(env.reset()[0])
+        discrete_state = to_discrete_state(env.reset(seed=seed)[0])
         done = False
         while not done:
 
-            # choose action
-            if np.random.random() > epsilon:
-                # exploit
-                action = np.argmax(q_table[discrete_state])
-            else:
-                # explore
-                action = np.random.randint(0, env.action_space.n)
+            # choose between explore/exploit but, we could skip this step if q-table is initialized with random
+            # values which would mean considering an exploitation, at the beginning of the training,
+            # is like considering an exploration
+            action = explore_or_exploit(q_table[discrete_state])
+            # action = np.argmax(q_table[discrete_state])
 
             observation, reward, terminated, truncated, info = env.step(action)
             new_discrete_state = to_discrete_state(observation)
@@ -134,7 +127,8 @@ def train():
 
     print("final q_table: ")
     print(q_table)
-    np.save("q_table", q_table)
+    if SAVE_Q_TABLE:
+        np.save("q_table", q_table)
 
 
 def predict():
@@ -143,10 +137,12 @@ def predict():
     :return:
     """
     print("**** Predict ****")
+    global seed
     q_table = np.load("q_table.npy")
     env = gym.make('MountainCar-v0', render_mode="human")
-    # env_test = gym.make('MountainCar-v0')
-    discrete_state = to_discrete_state(env.reset(options={}, seed=42)[0])
+    # here we use a seed to reproduce the same initial state, but it's not necessary
+    # without, we would require way more training epochs (and thus training time) in order to succeed every time
+    discrete_state = to_discrete_state(env.reset(options={}, seed=seed)[0])
     done = False
     while not done:
         action_index = np.argmax(q_table[discrete_state])
