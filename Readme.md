@@ -2,6 +2,8 @@
 
 ## Mountain Car Problem
 
+![mountain_car](assets/initial_state.png)
+
 https://gymnasium.farama.org/environments/classic_control/mountain_car/
 
 ## Temporal Difference Learning (TD Learning)
@@ -30,3 +32,10 @@ $$
 
 is the maximum of Q_value along its actions, of a chosen next state
 
+## References
+
+[L42 Project](https://github.com/L42Project/Tutoriels/tree/master/Divers/renforcement2)
+
+and YouTube lessons: [here](https://youtube.com/playlist?list=PLALfJegMRGp3_H_eiOoxqkCEKnSsAf9cg)
+
+[FarzamTP](https://github.com/FarzamTP/Q-Learning-Mountain-Car/tree/master)
